@@ -13,7 +13,10 @@ from predicting.pkaCalc import calculate_pka
 
 mol = Chem.MolFromSmiles("NCCO")
 
-pka = calculate_pka(mol, method = "etr1") # returns PkaResult object
+pka = calculate_pka(mol, method = "etr1") # returns PkaResult object with the results of the model
+
+pka = calculate_pka(mol, method = "rules") # returns PkaResult object with the pka from the rules file
+
 ```
 
 # History
