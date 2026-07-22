@@ -10,7 +10,7 @@ from rdkit import Chem
 from rdkit.Chem import PandasTools
 import pandas as pd
 from molscrub import AcidBaseConjugator
-from molscrub.protonate import convert_exhaustive, convert_all_single_sites
+from molscrub.protonate import convert_exhaustive
 import itertools
 
 import argparse
@@ -50,7 +50,7 @@ def convert_single_sites_allrxns(mol):
     size = len(conjugator.pka_reactions)
 
     for i,r in enumerate(conjugator.pka_reactions):
-        temp_forward = convert_all_single_sites(mol, r["rxn_gain_h"])
+        temp_forward = conjugator.convert_all_single_sites(mol, r["rxn_gain_h"])
 
         for m in temp_forward:    
             smi = Chem.MolToSmiles(m, canonical=True)
@@ -66,7 +66,7 @@ def convert_single_sites_allrxns(mol):
                                      "rxn_1hot_encoding": conjugator._one_hot(size, i)})
 
 
-        temp_backward = convert_all_single_sites(mol, r["rxn_lose_h"])
+        temp_backward = conjugator.convert_all_single_sites(mol, r["rxn_lose_h"])
         for m in temp_backward:    
             smi = Chem.MolToSmiles(m, canonical=True)
             if smi not in seen_smiles:
@@ -148,7 +148,19 @@ if __name__ == "__main__":
 
     # select single reactions and expand. 
     data2 = data1[data1.direction.apply(len) == 1]
-    data2[new_df.columns.values] = data2[new_df.columns.values].map(lambda x: x[0])
+    data2[new_df.columns.values] = data2[new_df.columns.values].applymap(lambda x: x[0])
+
+    #duplicate df to also include products in the training set
+    data2_products = data2.copy(deep=True)
+
+    #reverse product and romol columns
+    romols_copy = data2_products["ROMol"]
+    data2_products["ROMol"] = data2_products["products"]
+    data2_products["products"] = romols_copy
+    data2_products["direction"] = data2_products["direction"].apply(lambda x: "forward" if x == "backward" else "backward")
+
+    data2 = pd.concat([data2, data2_products], ignore_index=True)
+
     data3 = data2[['pKa', "marvin_atom", 'ID', 'ROMol', 'smiles', 'products', 'base_pkas', 'rxn_name', 'direction', 'protonated_atom', 'rxn_encoding']]
     data3["pka_diff"] = data3.pKa - data3.base_pkas
     data3["charge_diff"] = data3.apply(lambda x: conjugator._charge_diff(x.ROMol, x.protonated_atom), axis=1)
